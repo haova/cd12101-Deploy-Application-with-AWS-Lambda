@@ -1,8 +1,22 @@
+import { createTodo } from '../service/todo.js'
+import { getUserId } from '../utils.mjs'
 
-export function handler(event) {
-  const newTodo = JSON.parse(event.body)
+export const handler = async (event) => {
+  console.log('Event: ', event)
 
-  // TODO: Implement creating a new TODO item
-  return undefined
+  const userId = getUserId(event)
+  const payload = JSON.parse(event.body)
+
+  const item = await createTodo(userId, payload)
+
+  return {
+    statusCode: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Credentials': true
+    },
+    body: JSON.stringify({
+      item
+    })
+  }
 }
-

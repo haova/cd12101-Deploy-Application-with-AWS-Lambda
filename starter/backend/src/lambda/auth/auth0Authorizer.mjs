@@ -3,8 +3,8 @@ import jsonwebtoken from 'jsonwebtoken'
 import { createLogger } from '../../utils/logger.mjs'
 
 const logger = createLogger('auth')
-
-const jwksUrl = 'https://test-endpoint.auth0.com/.well-known/jwks.json'
+const jwksUrl = process.env.AUTH0_JWKS_URL
+let savedCert = null
 
 export async function handler(event) {
   try {
@@ -44,10 +44,8 @@ export async function handler(event) {
 
 async function verifyToken(authHeader) {
   const token = getToken(authHeader)
-  const jwt = jsonwebtoken.decode(token, { complete: true })
-
-  // TODO: Implement token verification
-  return undefined;
+  const cert = await getCert()
+  return jsonwebtoken.verify(token, cert, { algorithms: ['RS256'] })
 }
 
 function getToken(authHeader) {
@@ -60,4 +58,36 @@ function getToken(authHeader) {
   const token = split[1]
 
   return token
+}
+
+async function getCert() {
+  if (savedCert) return savedCert
+
+  const response = await Axios.get(jwksUrl)
+  const keys = response.data.keys
+
+  const signingKeys = keys.filter(
+    (key) =>
+      key.use === 'sig' &&
+      key.kty === 'RSA' &&
+      key.alg === 'RS256' &&
+      key.n &&
+      key.e &&
+      key.kid &&
+      key.x5c &&
+      key.x5c.length
+  )
+
+  const key = signingKeys[0]
+  const pub = key.x5c[0]
+
+  savedCert = certToPEM(pub)
+
+  return savedCert
+}
+
+function certToPEM(cert) {
+  cert = cert.match(/.{1,64}/g).join('\n')
+  cert = `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----\n`
+  return cert
 }
